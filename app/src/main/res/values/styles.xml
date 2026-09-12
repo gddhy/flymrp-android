@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 无 ActionBar 主题。windowBackground 决定冷启动预览窗口的颜色，
+         这里给浅色值；深色见 values-night/styles.xml。
+         页面加载完成后 Activity 会按网页实际取色覆盖状态栏/导航栏。 -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowBackground">@color/light_bg</item>
+        <item name="android:statusBarColor">@color/light_panel</item>
+        <item name="android:navigationBarColor">@color/light_panel</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+</resources>

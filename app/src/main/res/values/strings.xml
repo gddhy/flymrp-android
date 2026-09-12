@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">flymrp</string>
+    <string name="press_again_to_exit">再按一次返回键退出</string>
+    <string name="cannot_open_link">无法打开该链接</string>
+    <string name="mrp_read_failed">读取 mrp 文件失败</string>
+    <string name="mrp_load_failed">mrp 文件注入失败，请在页面内手动选择文件</string>
+    <string name="choose_file">选择文件</string>
+    <string name="no_file_manager">没有可用的文件管理器</string>
+    <string name="file_saved">已保存</string>
+    <string name="save_failed">保存失败</string>
+    <string name="cannot_download">无法下载该链接</string>
+</resources>

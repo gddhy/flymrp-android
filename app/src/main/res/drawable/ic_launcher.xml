@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- flymrp 图标（矢量版，无 PNG）
+     源文件: icon.svg (48x48, 描边 #333, stroke-width 4)
+     用于 Android 7(API 24)/8 之前的桌面图标；API 26+ 由 adaptive-icon 版本接管 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- 机身外框 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,4H36A2,2 0,0 1,38 6V42A2,2 0,0 1,36 44H12A2,2 0,0 1,10 42V6A2,2 0,0 1,12 4Z"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF333333"
+        android:strokeLineJoin="round"
+        android:strokeWidth="4" />
+
+    <!-- 屏幕 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M18,12H30A2,2 0,0 1,32 14V20A2,2 0,0 1,30 22H18A2,2 0,0 1,16 20V14A2,2 0,0 1,18 12Z"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF333333"
+        android:strokeLineJoin="round"
+        android:strokeWidth="4" />
+
+    <!-- 十字键：M16 32 L24 32 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M16,32H24"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF333333"
+        android:strokeLineJoin="round"
+        android:strokeWidth="4" />
+
+    <!-- 十字键：M20 36 V28 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M20,36V28"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF333333"
+        android:strokeLineJoin="round"
+        android:strokeWidth="4" />
+
+    <!-- 按键圆点 1：rect(27,33,4,4,rx2) -->
+    <path
+        android:fillColor="#FF333333"
+        android:pathData="M27,35A2,2 0,1 1,31 35A2,2 0,1 1,27 35Z"
+        android:strokeWidth="0" />
+
+    <!-- 按键圆点 2：rect(30,26,4,4,rx2) -->
+    <path
+        android:fillColor="#FF333333"
+        android:pathData="M30,28A2,2 0,1 1,34 28A2,2 0,1 1,30 28Z"
+        android:strokeWidth="0" />
+</vector>

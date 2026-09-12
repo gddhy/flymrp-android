@@ -1,0 +1,25 @@
+# Gradle / Android Studio
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# 构建产物
+build/
+app/build/
+out/
+*.apk
+*.aab
+*.ap_
+
+# 签名文件（切勿提交）
+*.jks
+*.keystore
+*.pem
+*.p12
+signing.properties
+keystore.properties

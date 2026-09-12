@@ -1,0 +1,31 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdk 32
+    buildToolsVersion '32.0.0'
+
+    defaultConfig {
+        applicationId "net.gddhy.flymrp"
+        minSdk 24
+        targetSdk 32
+        // versionName 固定为 0.0.3（与线上 flymrp 构建版本保持一致），每次调整只递增 versionCode
+        versionCode 15
+        versionName "0.0.3"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // 仅使用 Android 基础组件，不引用 AndroidX / Android Support
+}

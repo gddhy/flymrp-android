@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="status_bar">#FFF5F5F5</color>
+    <color name="window_bg">#FFF5F5F5</color>
+    <!-- 加载动画配色 -->
+    <color name="accent">#FF333333</color>
+    <color name="progress_bg">#00000000</color>
+
+    <!-- 与网页主题一致的配色（浅色 :root / 深色 [data-theme=dark]） -->
+    <color name="light_bg">#FFF5F5F5</color>
+    <color name="light_panel">#FFFFFFFF</color>
+    <color name="light_accent">#FF3482FF</color>
+    <color name="dark_bg">#FF111113</color>
+    <color name="dark_panel">#FF1C1C1E</color>
+    <color name="dark_accent">#FF619EFF</color>
+
+    <!-- 自适应图标背景色 -->
+    <color name="ic_launcher_background">#FFFFFFFF</color>
+</resources>

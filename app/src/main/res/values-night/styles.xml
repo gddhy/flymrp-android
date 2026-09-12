@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 系统深色模式下，冷启动预览窗口用深色，避免先闪一下白 -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowBackground">@color/dark_bg</item>
+        <item name="android:statusBarColor">@color/dark_panel</item>
+        <item name="android:navigationBarColor">@color/dark_panel</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+</resources>
