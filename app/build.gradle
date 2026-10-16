@@ -9,7 +9,7 @@ android {
         minSdk 24
         targetSdk 32
         // versionName 固定为 0.0.3（与线上 flymrp 构建版本保持一致），每次调整只递增 versionCode
-        versionCode 15
+        versionCode 17
         versionName "0.0.3"
     }
 

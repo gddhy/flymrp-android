@@ -67,7 +67,13 @@ import java.util.Locale;
  *   并把 mrp 文件字节注入页面 #file 输入框、派发 change 事件，
  *   等价于在网页上"选择本地 mrp 文件运行"
  * - flymrp.gddhy.net 域名链接在 WebView 内打开，其他域名跳转系统浏览器
- * - 返回键：可回退时 WebView goBack，否则双击退出
+ * - 返回键：分三种情况
+ *   1) 正常启动、当前在主页 index.html → 双击退出
+ *   2) 正常启动、当前在其他页面 → 走 WebView 历史返回上一级（无历史则回主页）
+ *   3) 以 .mrp 文件打开方式启动 → 直接退出 Activity，不回主页
+ *   拨号键画布全屏（仅播放页可触发）下，返回键仍转发成右软键(18)给模拟器内部，不受上面影响
+ * - mrp 文件打开方式下：网页回到主页（index.html）即视为 mrp 已退出，直接关闭 Activity；
+ *   正常从主页进播放页的情况不受影响（回到主页属正常导航）
  */
 public class MainActivity extends Activity {
 
@@ -85,6 +91,10 @@ public class MainActivity extends Activity {
     private static final int REQ_SAVE_FILE = 1002;
     /** blob 回传的 base64 分片大小，避开 Binder 1MB 限制 */
     private static final int BLOB_CHUNK = 180000;
+
+    /** 重建时保留"是否 mrp 文件打开方式启动 / mrp 是否已跑起来" */
+    private static final String STATE_FROM_MRP = "flymrp.from_mrp";
+    private static final String STATE_PLAYER_STARTED = "flymrp.player_started";
 
     /**
      * 拨号键切换"游戏画面全屏"：
@@ -219,6 +229,36 @@ public class MainActivity extends Activity {
                     + "try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',report);}catch(e){}"
                     + "window.__fmThemeInit=1;return 'ok';}catch(e){return 'err:'+e;}})()";
 
+    /**
+     * mrp 文件打开方式启动时的"退出监听"。
+     * 线上播放页 main.html 在 mrp 退出（或点页面里的"返回"）后走 player.js 的 pt()：
+     *   location.assign(https://flymrp.gddhy.net/index.html)   // 普通浏览器/非 KaiOS
+     *   location.replace(同上的 index.html)                     // KaiOS 且 referrer 不是 index.html
+     *   history.back()                                          // referrer 是 index.html 时
+     * 前两种是真实页面跳转，WebViewClient 里就能拦住；history.back()（以及将来若改
+     * 前端路由 pushState/replaceState）不会走 shouldOverrideUrlLoading，这里在页面内兜一层：
+     * 一旦路径既不是 main.html、又落在主页（/ 或 index.html），就回调宿主退出 App。
+     */
+    private static final String JS_EXIT_WATCH =
+            "(function(){try{var h=window.FlyMrpHost;if(!h){return 'no-bridge';}"
+                    + "if(window.__fmExitWatch){return 'ok';}"
+                    + "window.__fmExitWatch=1;"
+                    + "function path(){var p='';try{p=String(location.pathname||'');}catch(e){p='';}return p;}"
+                    + "function isPlayer(){return path().indexOf('main.html')>=0;}"
+                    + "function isHome(){var p=path();"
+                    + "if(!p||p==='/'||p.charAt(p.length-1)==='/'){return true;}"
+                    + "return p.indexOf('index.html')>=0;}"
+                    + "function chk(){if(isPlayer()||!isHome()){return false;}"
+                    + "if(window.__fmExitSent){return true;}window.__fmExitSent=1;"
+                    + "try{h.onPlayerExit(String(location.href||''));}catch(e){}return true;}"
+                    + "window.addEventListener('popstate',chk);"
+                    + "try{var ps=history.pushState,rs=history.replaceState;"
+                    + "history.pushState=function(){var r=ps.apply(this,arguments);chk();return r;};"
+                    + "history.replaceState=function(){var r=rs.apply(this,arguments);chk();return r;};"
+                    + "}catch(e){}"
+                    + "setInterval(chk,500);"
+                    + "return 'ok';}catch(e){return 'err:'+e;}})()";
+
     private static final String PREF_NAME = "flymrp";
     private static final String PREF_DARK = "theme_dark";
     private static final String PREF_TOP = "color_top";
@@ -260,6 +300,13 @@ public class MainActivity extends Activity {
     private boolean mInjectPending = false;
     private int mInjectRetry = 0;
 
+    /** 是否由 .mrp 文件关联启动（此模式下 mrp 退出后直接关掉 Activity） */
+    private boolean mFromMrp = false;
+    /** mrp 是否已成功送入网页并开始运行（避免页面早期跳转被误判成"mrp 已退出"） */
+    private boolean mPlayerStarted = false;
+    /** 退出流程是否已触发，防止重复 finish */
+    private boolean mExiting = false;
+
     private final Runnable mInjectRunnable = new Runnable() {
         @Override
         public void run() {
@@ -282,7 +329,11 @@ public class MainActivity extends Activity {
                     || value.contains("no-files")
                     || value.contains("empty")) {
                 Toast.makeText(MainActivity.this, R.string.mrp_load_failed, Toast.LENGTH_LONG).show();
+                return;
             }
+            // mrp 已真正跑起来了：此后网页一旦回到主页，就说明 mrp 退出了
+            mPlayerStarted = true;
+            mWebView.evaluateJavascript(JS_EXIT_WATCH, null);
         }
     };
 
@@ -333,16 +384,31 @@ public class MainActivity extends Activity {
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleUrl(request.getUrl().toString());
+                String url = request.getUrl().toString();
+                if (shouldExitToHome(url)) {
+                    exitApp();
+                    return true;
+                }
+                return handleUrl(url);
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (shouldExitToHome(url)) {
+                    exitApp();
+                    return true;
+                }
                 return handleUrl(url);
             }
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                // 保险：mrp 文件打开方式下，页面已经开始往主页跳了就直接收摊
+                if (shouldExitToHome(url)) {
+                    view.stopLoading();
+                    exitApp();
+                    return;
+                }
                 // 页面切换时画布全屏状态失效，恢复系统栏
                 resetCanvasFullscreen();
                 mProgressBar.setVisibility(View.VISIBLE);
@@ -368,6 +434,10 @@ public class MainActivity extends Activity {
                     mInjectRetry = 0;
                     // 给 SPA 一点时间渲染出 #file 输入框
                     view.postDelayed(mInjectRunnable, 400L);
+                }
+                // mrp 文件打开方式：在播放页挂上"回到主页即退出"的监听
+                if (mFromMrp && mPlayerStarted && url != null && url.startsWith(PLAYER_URL)) {
+                    view.evaluateJavascript(JS_EXIT_WATCH, null);
                 }
             }
         });
@@ -453,6 +523,8 @@ public class MainActivity extends Activity {
         });
 
         if (savedInstanceState != null) {
+            mFromMrp = savedInstanceState.getBoolean(STATE_FROM_MRP, false);
+            mPlayerStarted = savedInstanceState.getBoolean(STATE_PLAYER_STARTED, false);
             mWebView.restoreState(savedInstanceState);
         } else {
             handleIntent(getIntent());
@@ -561,6 +633,89 @@ public class MainActivity extends Activity {
     private boolean isPlayerPage() {
         String url = mWebView == null ? null : mWebView.getUrl();
         return url != null && url.startsWith(PLAYER_URL);
+    }
+
+    /* -------- mrp 文件打开方式：mrp 退出（网页回主页）即关闭 Activity -------- */
+
+    /** 由 .mrp 文件关联启动、且 mrp 已经真的跑起来了 */
+    private boolean inMrpSession() {
+        return mFromMrp && mPlayerStarted && !mExiting;
+    }
+
+    /** 该 URL 是否站点主页（index.html 或站点根目录） */
+    private static boolean isHomeUrl(String url) {
+        if (!isInternalUrl(url)) {
+            return false;
+        }
+        String path = Uri.parse(url).getPath();
+        if (TextUtils.isEmpty(path) || "/".equals(path) || path.endsWith("/")) {
+            return true;
+        }
+        return path.toLowerCase(Locale.US).endsWith("index.html");
+    }
+
+    /**
+     * 是否应当"因为 mrp 退出而关掉 Activity"：
+     * 仅当本次是 .mrp 文件打开方式启动、mrp 已经运行起来、且网页正往主页（index.html）跳。
+     * 从主页进播放页再回主页的正常流程不受影响。
+     */
+    private boolean shouldExitToHome(String url) {
+        return inMrpSession() && isHomeUrl(url);
+    }
+
+    /** 关了 Activity 就等于退出模拟器，直接回文件管理器 */
+    private void exitApp() {
+        if (mExiting) {
+            return;
+        }
+        mExiting = true;
+        Log.d(TAG, "mrp exited, finish activity");
+        finish();
+    }
+
+    /** 网页侧兜底回调：页内已切回主页（history.back / 前端路由）时也照样退出 */
+    private void onPlayerExitFromWeb(String url) {
+        if (mExiting || !mFromMrp || !mPlayerStarted) {
+            return;
+        }
+        if (url != null && url.startsWith(PLAYER_URL)) {
+            return;
+        }
+        exitApp();
+    }
+
+    /* ---------------------------- 返回键 ---------------------------- */
+
+    /**
+     * 返回键（拨号键画布全屏时不会走到这里，已在 dispatchKeyEvent 里转成右软键给模拟器）：
+     * 1) mrp 文件打开方式启动：直接退出 Activity（不回主页，也不给模拟器内部）；
+     * 2) 正常启动且当前在主页 index.html：双击退出；
+     * 3) 正常启动且当前在其他页面：走 WebView 历史返回上一级，没有历史可退就回主页。
+     */
+    private boolean handleBackKey() {
+        if (mFromMrp) {
+            exitApp();
+            return true;
+        }
+        String url = mWebView == null ? null : mWebView.getUrl();
+        if (!isHomeUrl(url)) {
+            if (mWebView.canGoBack()) {
+                mWebView.goBack();
+            } else {
+                // 没有历史可退（正常流程少见）：当作"回到上一级"回主页
+                mWebView.loadUrl(HOME_URL);
+            }
+            return true;
+        }
+        // 主页：双击返回键退出
+        long now = System.currentTimeMillis();
+        if (now - mLastBackTime < DOUBLE_BACK_INTERVAL) {
+            finish();
+        } else {
+            mLastBackTime = now;
+            Toast.makeText(this, R.string.press_again_to_exit, Toast.LENGTH_SHORT).show();
+        }
+        return true;
     }
 
     private void toggleCanvasFullscreen() {
@@ -830,12 +985,19 @@ public class MainActivity extends Activity {
                     mPendingName = resolveName(uri);
                     mInjectPending = true;
                     mInjectRetry = 0;
+                    // 文件关联启动：mrp 退出后直接关掉 Activity
+                    mFromMrp = true;
+                    mPlayerStarted = false;
+                    mExiting = false;
                     mWebView.loadUrl(PLAYER_URL);
                     return;
                 }
                 Toast.makeText(this, R.string.mrp_read_failed, Toast.LENGTH_LONG).show();
             }
         }
+        // 正常启动/主页入口：主页 <-> 播放页之间来回跳属正常导航，不退出 App
+        mFromMrp = false;
+        mPlayerStarted = false;
         mWebView.loadUrl(HOME_URL);
     }
 
@@ -1024,6 +1186,21 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        /** 页内检测到已离开播放页、回到主页（mrp 退出） */
+        @JavascriptInterface
+        public void onPlayerExit(final String url) {
+            final MainActivity activity = mRef.get();
+            if (activity == null) {
+                return;
+            }
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    activity.onPlayerExitFromWeb(url);
+                }
+            });
+        }
     }
 
     /** 系统是否处于深色模式（页面未给出主题时的默认值） */
@@ -1186,24 +1363,13 @@ public class MainActivity extends Activity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // 网页全屏时，返回键先退出全屏
+            // 网页 Fullscreen API 全屏时，返回键先退出全屏
             if (isFullscreen()) {
                 exitFullscreen();
                 return true;
             }
-            if (mWebView.canGoBack()) {
-                mWebView.goBack();
-                return true;
-            }
-            // 不可回退时，双击返回键退出
-            long now = System.currentTimeMillis();
-            if (now - mLastBackTime < DOUBLE_BACK_INTERVAL) {
-                finish();
-            } else {
-                mLastBackTime = now;
-                Toast.makeText(this, R.string.press_again_to_exit, Toast.LENGTH_SHORT).show();
-            }
-            return true;
+            // 拨号键画布全屏时已在 dispatchKeyEvent 里消费掉 BACK，不会走到这里
+            return handleBackKey();
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -1211,6 +1377,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_FROM_MRP, mFromMrp);
+        outState.putBoolean(STATE_PLAYER_STARTED, mPlayerStarted);
         mWebView.saveState(outState);
     }
 
